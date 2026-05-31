@@ -6,8 +6,7 @@ import {
   signOut, 
   signInAnonymously,
   signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  signInWithPhoneNumber
+  createUserWithEmailAndPassword
 } from 'firebase/auth';
 import { auth } from '../firebase';
 
@@ -19,7 +18,6 @@ interface AuthContextType {
   signInGuest: () => Promise<void>;
   signInWithEmail: (email: string, pass: string) => Promise<void>;
   signUpWithEmail: (email: string, pass: string) => Promise<void>;
-  signInWithPhone: (phoneNumber: string, appVerifier: any) => Promise<any>;
   logOut: () => Promise<void>;
   setError: (val: string | null) => void;
 }
@@ -32,7 +30,6 @@ const AuthContext = createContext<AuthContextType>({
   signInGuest: async () => {},
   signInWithEmail: async () => {},
   signUpWithEmail: async () => {},
-  signInWithPhone: async () => { throw new Error('Not implemented'); },
   logOut: async () => {},
   setError: () => {},
 });
@@ -122,21 +119,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const signInWithPhone = async (phoneNumber: string, appVerifier: any) => {
-    try {
-      setError(null);
-      return await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
-    } catch (err: any) {
-      console.error('Phone sign-in error:', err);
-      if (err?.code === 'auth/operation-not-allowed') {
-        setError('Phone Sign-In is disabled. Turn "Phone" on inside the "Sign-in method" page of Firebase console.');
-      } else {
-        setError(err?.message || 'Failed to send verification code. Please check that the phone number matches E.164 format (e.g., +15551234567).');
-      }
-      throw err;
-    }
-  };
-
   const logOut = async () => {
     await signOut(auth);
   };
@@ -150,7 +132,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInGuest, 
       signInWithEmail, 
       signUpWithEmail, 
-      signInWithPhone, 
       logOut, 
       setError 
     }}>

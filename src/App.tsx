@@ -13,7 +13,6 @@ import {
   Settings,
   ArrowLeft,
   Mail,
-  Phone,
   Shield
 } from 'lucide-react';
 import { cn } from './utils';
@@ -23,7 +22,6 @@ import { ThemeBackground } from './components/ThemeBackground';
 import { useSettings } from './useSettings';
 import { useAuth } from './hooks/useAuth';
 import { auth } from './firebase';
-import { RecaptchaVerifier } from 'firebase/auth';
 
 function MainApp() {
   const { dreams, addDream, deleteDream, importDreams, loaded } = useDreams();
@@ -230,14 +228,11 @@ export default function App() {
     signInGuest, 
     signInWithEmail, 
     signUpWithEmail, 
-    signInWithPhone, 
     setError 
   } = useAuth();
 
-  const [method, setMethod] = useState<'options' | 'email' | 'phone'>('options');
+  const [method, setMethod] = useState<'options' | 'email'>('options');
   const [emailForm, setEmailForm] = useState({ email: '', password: '', isSignup: false });
-  const [phoneForm, setPhoneForm] = useState({ phoneNumber: '', code: '', step: 'send' as 'send' | 'verify' });
-  const [confirmationResult, setConfirmationResult] = useState<any>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (loading) return null;
@@ -260,52 +255,11 @@ export default function App() {
     }
   };
 
-  const handlePhoneSend = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phoneForm.phoneNumber) return;
-    setIsSubmitting(true);
-    setError(null);
-    try {
-      let recVerifier = (window as any).recaptchaVerifier;
-      if (!recVerifier) {
-        recVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          size: 'invisible'
-        });
-        (window as any).recaptchaVerifier = recVerifier;
-      }
-      const confirmResult = await signInWithPhone(phoneForm.phoneNumber, recVerifier);
-      setConfirmationResult(confirmResult);
-      setPhoneForm(prev => ({ ...prev, step: 'verify' }));
-    } catch (err: any) {
-      console.error(err);
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handlePhoneVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!phoneForm.code || !confirmationResult) return;
-    setIsSubmitting(true);
-    setError(null);
-    try {
-      await confirmationResult.confirm(phoneForm.code);
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.message || 'Invalid SMS Code. Please check the spelling and try again.');
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-950 px-4 relative overflow-hidden">
         <ThemeBackground themeName="twilight" speed={50} />
         
-        {/* Invisible recaptcha frame required for phone auth */}
-        <div id="recaptcha-container" className="hidden"></div>
-
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -318,8 +272,6 @@ export default function App() {
                 onClick={() => {
                   setMethod('options');
                   setError(null);
-                  setPhoneForm(prev => ({ ...prev, step: 'send', code: '' }));
-                  setConfirmationResult(null);
                 }}
                 className="text-white/40 hover:text-white transition-colors flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest"
               >
@@ -363,14 +315,6 @@ export default function App() {
                 className="w-full border border-white/15 bg-white/5 hover:bg-white/10 py-3 px-4 text-xs font-mono transition-all tracking-widest cursor-pointer uppercase flex items-center justify-center gap-2"
               >
                 <Mail size={14} className="text-white/70" /> SIGN IN WITH EMAIL
-              </button>
-
-              {/* Phone code authorization tab handler */}
-              <button 
-                onClick={() => setMethod('phone')}
-                className="w-full border border-white/15 bg-white/5 hover:bg-white/10 py-3 px-4 text-xs font-mono transition-all tracking-widest cursor-pointer uppercase flex items-center justify-center gap-2"
-              >
-                <Phone size={14} className="text-white/70" /> SIGN IN WITH PHONE
               </button>
 
               <div className="w-full flex items-center justify-center gap-2 my-4">
@@ -436,62 +380,6 @@ export default function App() {
                 </button>
               </div>
             </form>
-          )}
-
-          {method === 'phone' && (
-            <div className="w-full">
-              {phoneForm.step === 'send' ? (
-                <form onSubmit={handlePhoneSend} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-mono tracking-widest uppercase text-white/50 block">PHONE NUMBER (E.164)</label>
-                    <input 
-                      type="tel" 
-                      value={phoneForm.phoneNumber}
-                      onChange={e => setPhoneForm(prev => ({ ...prev, phoneNumber: e.target.value }))}
-                      placeholder="+15551234567"
-                      className="w-full bg-white/5 border border-white/20 px-3 py-2 text-sm focus:outline-none focus:border-white/55 font-mono"
-                      required
-                    />
-                  </div>
-                  <button 
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full bg-white text-black py-3 px-4 text-xs font-mono font-bold hover:bg-white/90 disabled:bg-white/40 disabled:cursor-not-allowed transition-all tracking-widest uppercase"
-                  >
-                    {isSubmitting ? 'SENDING SMS...' : 'SEND VERIFICATION CODE'}
-                  </button>
-                </form>
-              ) : (
-                <form onSubmit={handlePhoneVerify} className="space-y-4">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-mono tracking-widest uppercase text-white/50 block">6-DIGIT SMS CODE</label>
-                    <input 
-                      type="text" 
-                      value={phoneForm.code}
-                      onChange={e => setPhoneForm(prev => ({ ...prev, code: e.target.value }))}
-                      placeholder="123456"
-                      className="w-full bg-white/5 border border-white/20 px-3 py-2 text-sm focus:outline-none focus:border-white/55 font-mono text-center tracking-widest font-semibold"
-                      required
-                      maxLength={6}
-                    />
-                  </div>
-                  <button 
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="w-full bg-white text-black py-3 px-4 text-xs font-mono font-bold hover:bg-white/90 disabled:bg-white/40 disabled:cursor-not-allowed transition-all tracking-widest uppercase"
-                  >
-                    {isSubmitting ? 'VERIFYING CODE...' : 'VERIFY & SIGN IN'}
-                  </button>
-                  <button 
-                    type="button"
-                    onClick={() => setPhoneForm(prev => ({ ...prev, step: 'send' }))}
-                    className="w-full text-center text-[10px] font-mono tracking-widest uppercase text-white/40 hover:text-white pb-1"
-                  >
-                    Resend Code
-                  </button>
-                </form>
-              )}
-            </div>
           )}
         </motion.div>
       </div>

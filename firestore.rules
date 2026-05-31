@@ -9,12 +9,9 @@ service cloud.firestore {
     function incoming() { return request.resource.data; }
     function existing() { return resource.data; }
     
-    // We only allow authenticated users with verified emails or secure anonymous session keys
+    // We allow any authenticated user (Google, Guest, Phone, Email/Password)
     function isSignedIn() { 
-      return request.auth != null && (
-        (request.auth.token.firebase.sign_in_provider == 'anonymous') ||
-        (request.auth.token.email_verified == true)
-      ); 
+      return request.auth != null; 
     }
     
     function isOwner(userId) {
