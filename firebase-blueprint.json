@@ -1,0 +1,50 @@
+{
+  "entities": {
+    "Dream": {
+      "title": "Dream",
+      "description": "A user's dream log entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "timestamp": { "type": "number" },
+        "date": { "type": ["string", "null"] },
+        "orderIndex": { "type": "number" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "mood": { "type": ["object", "number"] },
+        "clarity": { "type": ["object", "number"] },
+        "isLucid": { "type": "boolean" },
+        "isWBTB": { "type": "boolean" },
+        "isOriginalArchive": { "type": "boolean" },
+        "createdAt": { "type": "number", "description": "Server timestamp of creation" },
+        "updatedAt": { "type": "number", "description": "Server timestamp of last update" }
+      },
+      "required": ["id", "userId", "timestamp", "title", "content", "isLucid", "isWBTB", "isOriginalArchive", "createdAt", "updatedAt"]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "User preferences",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "themeColor": { "type": "string" },
+        "flowSpeed": { "type": "number" },
+        "targetLogs": { "type": "number" },
+        "targetLucids": { "type": "number" },
+        "updatedAt": { "type": "number" }
+      },
+      "required": ["userId", "themeColor", "flowSpeed", "targetLogs", "targetLucids", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}/dreams/{dreamId}": {
+      "schema": { "$ref": "#/entities/Dream" },
+      "description": "A collection of dreams belonging to a user."
+    },
+    "users/{userId}/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/UserSettings" },
+      "description": "User settings document."
+    }
+  }
+}

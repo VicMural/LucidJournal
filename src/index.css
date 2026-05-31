@@ -1,0 +1,35 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 1rem);
+}
+
+.no-scrollbar {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+body {
+  @apply bg-zinc-950 text-white antialiased selection:bg-white/30 selection:text-white;
+  overflow-x: hidden;
+}
+
+/* Angular, minimalist form elements */
+input, textarea, select {
+  @apply border-white/20 focus:border-white focus:ring-0 rounded-none bg-transparent outline-none transition-colors text-white;
+}
+
+button {
+  @apply rounded-none;
+}

@@ -1,0 +1,99 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+    
+    // We only allow authenticated users with verified emails
+    function isSignedIn() { 
+      // Important: if we use Google Provider, email is always verified.
+      return request.auth != null && request.auth.token.email_verified == true; 
+    }
+    
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    function isValidId(id) { 
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+
+    function isValidDream(data) {
+      return data.keys().hasAll(['id', 'userId', 'timestamp', 'title', 'content', 'isLucid', 'isWBTB', 'isOriginalArchive', 'createdAt', 'updatedAt'])
+        && data.id is string && data.id.size() <= 128
+        && data.userId is string && data.userId == request.auth.uid
+        && data.timestamp is number
+        && data.title is string && data.title.size() <= 2000
+        && data.content is string && data.content.size() <= 100000
+        && data.isLucid is bool
+        && data.isWBTB is bool
+        && data.isOriginalArchive is bool
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp
+        && (data.date == null || (data.date is string && data.date.size() <= 20))
+        && (!('orderIndex' in data) || data.orderIndex is number)
+        && ('mood' in data)
+        && ('clarity' in data);
+    }
+    
+    function isValidSettings(data) {
+      return data.keys().hasAll(['userId', 'themeColor', 'flowSpeed', 'targetLogs', 'targetLucids', 'updatedAt'])
+        && data.userId is string && data.userId == request.auth.uid
+        && data.themeColor is string && data.themeColor.size() <= 50
+        && data.flowSpeed is number
+        && data.targetLogs is number
+        && data.targetLucids is number
+        && data.updatedAt is timestamp;
+    }
+
+    match /users/{userId} {
+      allow read, write: if false;
+
+      match /dreams/{dreamId} {
+        allow get: if isOwner(userId) && isValidId(dreamId);
+        
+        // Since {userId} is bound in the path, querying /users/{uid}/dreams only returns that user's data
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId)
+          && isValidId(dreamId)
+          && isValidDream(incoming())
+          && incoming().createdAt == request.time
+          && incoming().updatedAt == request.time;
+
+        allow update: if isOwner(userId)
+          && isValidId(dreamId)
+          && isValidDream(incoming())
+          && incoming().userId == existing().userId
+          && incoming().id == existing().id
+          && incoming().createdAt == existing().createdAt
+          && incoming().updatedAt == request.time;
+
+        allow delete: if isOwner(userId) && isValidId(dreamId);
+      }
+
+      match /settings/{settingId} {
+        allow get: if isOwner(userId) && isValidId(settingId);
+        allow list: if isOwner(userId);
+        
+        allow create: if isOwner(userId)
+          && isValidId(settingId)
+          && isValidSettings(incoming())
+          && incoming().updatedAt == request.time;
+
+        allow update: if isOwner(userId)
+          && isValidId(settingId)
+          && isValidSettings(incoming())
+          && incoming().userId == existing().userId
+          && incoming().updatedAt == request.time;
+
+        allow delete: if isOwner(userId) && isValidId(settingId);
+      }
+    }
+  }
+}
