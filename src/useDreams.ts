@@ -7,7 +7,7 @@ import { useAuth } from './hooks/useAuth';
 export function useDreams() {
   const [dreams, setDreams] = useState<Dream[]>([]);
   const [loaded, setLoaded] = useState(false);
-  const { user } = useAuth();
+  const { user, setError } = useAuth();
 
   useEffect(() => {
     if (!user) {
@@ -44,11 +44,13 @@ export function useDreams() {
       setDreams(sorted);
       setLoaded(true);
     }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, path);
+      console.error('Firestore onSnapshot active stream list error:', error);
+      setError('Database Connection Notice: Failed to synchronize dreams. This can happen if security rules are still being deployed or if the Firestore project database has not been created yet in your console. Direct error: ' + (error instanceof Error ? error.message : String(error)));
+      setLoaded(true); // Ensure application renders so warning is seen
     });
 
     return unsubscribe;
-  }, [user]);
+  }, [user, setError]);
 
   const addDream = async (dream: Dream) => {
     if (!user) return;

@@ -19,7 +19,7 @@ const DEFAULT_SETTINGS: Settings = {
 
 export function useSettings() {
   const [settings, setSettings] = useState<Settings>(DEFAULT_SETTINGS);
-  const { user } = useAuth();
+  const { user, setError } = useAuth();
   
   useEffect(() => {
     if (!user) {
@@ -42,11 +42,12 @@ export function useSettings() {
         setSettings(DEFAULT_SETTINGS);
       }
     }, (error) => {
-      handleFirestoreError(error, OperationType.GET, path);
+      console.error('Firestore onSnapshot doc settings error:', error);
+      setError('Database Connection Notice (Settings): Failed to load settings. Direct error: ' + (error instanceof Error ? error.message : String(error)));
     });
     
     return unsubscribe;
-  }, [user]);
+  }, [user, setError]);
 
   const updateSettings = async (updates: Partial<Settings>) => {
     if (!user) return;

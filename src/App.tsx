@@ -3,13 +3,27 @@ import { useDreams } from './useDreams';
 import { DreamForm } from './components/DreamForm';
 import { DreamList } from './components/DreamList';
 import { Stats } from './components/Stats';
-import { Plus, BookOpen, BarChart2, Archive, ChevronRight, ChevronLeft, Settings } from 'lucide-react';
+import { 
+  Plus, 
+  BookOpen, 
+  BarChart2, 
+  Archive, 
+  ChevronRight, 
+  ChevronLeft, 
+  Settings,
+  ArrowLeft,
+  Mail,
+  Phone,
+  Shield
+} from 'lucide-react';
 import { cn } from './utils';
 import { motion, AnimatePresence } from 'motion/react';
 import { SettingsModal } from './components/SettingsModal';
 import { ThemeBackground } from './components/ThemeBackground';
 import { useSettings } from './useSettings';
 import { useAuth } from './hooks/useAuth';
+import { auth } from './firebase';
+import { RecaptchaVerifier } from 'firebase/auth';
 
 function MainApp() {
   const { dreams, addDream, deleteDream, importDreams, loaded } = useDreams();
@@ -208,36 +222,299 @@ function MainApp() {
 }
 
 export default function App() {
-  const { user, loading, signIn } = useAuth();
+  const { 
+    user, 
+    loading, 
+    error, 
+    signIn, 
+    signInGuest, 
+    signInWithEmail, 
+    signUpWithEmail, 
+    signInWithPhone, 
+    setError 
+  } = useAuth();
+
+  const [method, setMethod] = useState<'options' | 'email' | 'phone'>('options');
+  const [emailForm, setEmailForm] = useState({ email: '', password: '', isSignup: false });
+  const [phoneForm, setPhoneForm] = useState({ phoneNumber: '', code: '', step: 'send' as 'send' | 'verify' });
+  const [confirmationResult, setConfirmationResult] = useState<any>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (loading) return null;
+
+  const handleEmailSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!emailForm.email || !emailForm.password) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      if (emailForm.isSignup) {
+        await signUpWithEmail(emailForm.email, emailForm.password);
+      } else {
+        await signInWithEmail(emailForm.email, emailForm.password);
+      }
+    } catch (err) {
+      // Caught in hook context
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePhoneSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phoneForm.phoneNumber) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      let recVerifier = (window as any).recaptchaVerifier;
+      if (!recVerifier) {
+        recVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          size: 'invisible'
+        });
+        (window as any).recaptchaVerifier = recVerifier;
+      }
+      const confirmResult = await signInWithPhone(phoneForm.phoneNumber, recVerifier);
+      setConfirmationResult(confirmResult);
+      setPhoneForm(prev => ({ ...prev, step: 'verify' }));
+    } catch (err: any) {
+      console.error(err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePhoneVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!phoneForm.code || !confirmationResult) return;
+    setIsSubmitting(true);
+    setError(null);
+    try {
+      await confirmationResult.confirm(phoneForm.code);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || 'Invalid SMS Code. Please check the spelling and try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   if (!user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-zinc-950 px-4 relative overflow-hidden">
         <ThemeBackground themeName="twilight" speed={50} />
+        
+        {/* Invisible recaptcha frame required for phone auth */}
+        <div id="recaptcha-container" className="hidden"></div>
+
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="relative z-10 p-8 md:p-12 border border-white/10 bg-black/40 backdrop-blur-xl flex flex-col items-center max-w-sm w-full shadow-2xl"
+          className="relative z-10 p-6 md:p-10 border border-white/10 bg-black/60 backdrop-blur-2xl flex flex-col items-center max-w-sm w-full shadow-2xl rounded-none text-white font-sans"
         >
-          <div className="w-12 h-12 bg-white/10 border border-white/20 flex items-center justify-center text-white mb-6">
-            <BookOpen size={24} strokeWidth={1.5} />
+          {/* Header section with back action */}
+          <div className="w-full flex justify-between items-center mb-6">
+            {method !== 'options' && (
+              <button 
+                onClick={() => {
+                  setMethod('options');
+                  setError(null);
+                  setPhoneForm(prev => ({ ...prev, step: 'send', code: '' }));
+                  setConfirmationResult(null);
+                }}
+                className="text-white/40 hover:text-white transition-colors flex items-center gap-1.5 text-xs font-mono uppercase tracking-widest"
+              >
+                <ArrowLeft size={14} /> Back
+              </button>
+            )}
+            <div className="flex-1"></div>
+            <div className="w-8 h-8 bg-white/10 border border-white/20 flex items-center justify-center text-white">
+              <BookOpen size={16} strokeWidth={1.5} />
+            </div>
           </div>
-          <h1 className="text-2xl font-display font-bold text-white mb-2 tracking-tight text-center">LUCID JOURNAL</h1>
-          <p className="text-white/60 text-sm mb-8 text-center balance">
-            Secure, synchronized dream journaling across all your devices.
+
+          <h1 className="text-xl font-display font-medium tracking-widest text-center uppercase mb-1">LUCID JOURNAL</h1>
+          <p className="text-white/50 text-[11px] font-mono uppercase tracking-wider text-center mb-6">
+            SECURE ACCESS STATION
           </p>
-          <button 
-            onClick={signIn}
-            className="w-full bg-white text-black py-3 px-4 text-sm font-medium hover:bg-white/90 transition-colors shadow-lg shadow-white/10"
-          >
-            SIGN IN WITH GOOGLE
-          </button>
+
+          {error && (
+            <div className="w-full mb-6 p-4 border border-red-500/30 bg-red-950/25 text-red-200/90 text-[11px] font-mono text-left space-y-1.5 leading-relaxed">
+              <div className="font-bold flex justify-between items-center text-red-400">
+                <span>AUTHENTICATION ERROR</span>
+                <button onClick={() => setError(null)} className="text-red-400/50 hover:text-red-200 text-sm">✕</button>
+              </div>
+              <p className="text-[10px] uppercase text-red-300/80 leading-normal">{error}</p>
+            </div>
+          )}
+
+          {method === 'options' && (
+            <div className="w-full space-y-3">
+              {/* Google provider */}
+              <button 
+                onClick={signIn}
+                className="w-full bg-white text-black py-3 px-4 text-xs font-mono font-bold hover:bg-white/90 transition-all shadow-lg hover:shadow-white/5 tracking-widest cursor-pointer uppercase flex items-center justify-center gap-2"
+              >
+                <Shield size={14} /> SIGN IN WITH GOOGLE
+              </button>
+
+              {/* Email credentials tab handler */}
+              <button 
+                onClick={() => setMethod('email')}
+                className="w-full border border-white/15 bg-white/5 hover:bg-white/10 py-3 px-4 text-xs font-mono transition-all tracking-widest cursor-pointer uppercase flex items-center justify-center gap-2"
+              >
+                <Mail size={14} className="text-white/70" /> SIGN IN WITH EMAIL
+              </button>
+
+              {/* Phone code authorization tab handler */}
+              <button 
+                onClick={() => setMethod('phone')}
+                className="w-full border border-white/15 bg-white/5 hover:bg-white/10 py-3 px-4 text-xs font-mono transition-all tracking-widest cursor-pointer uppercase flex items-center justify-center gap-2"
+              >
+                <Phone size={14} className="text-white/70" /> SIGN IN WITH PHONE
+              </button>
+
+              <div className="w-full flex items-center justify-center gap-2 my-4">
+                <div className="h-[1px] bg-white/10 flex-1"></div>
+                <span className="text-[10px] font-mono text-white/30 uppercase tracking-widest select-none">or</span>
+                <div className="h-[1px] bg-white/10 flex-1"></div>
+              </div>
+
+              {/* Secure Anonymous user */}
+              <button 
+                onClick={signInGuest}
+                className="w-full border border-white/10 bg-white/0 hover:bg-white/5 text-white/70 py-3 px-4 text-xs font-mono hover:text-white transition-all tracking-widest cursor-pointer uppercase"
+              >
+                ENTER AS GUEST SESSION
+              </button>
+            </div>
+          )}
+
+          {method === 'email' && (
+            <form onSubmit={handleEmailSubmit} className="w-full space-y-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono tracking-widest uppercase text-white/50 block">EMAIL ADDRESS</label>
+                <input 
+                  type="email" 
+                  value={emailForm.email}
+                  onChange={e => setEmailForm(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="dreamer@lucid.com"
+                  className="w-full bg-white/5 border border-white/20 px-3 py-2 text-sm focus:outline-none focus:border-white/55 font-mono"
+                  required
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-mono tracking-widest uppercase text-white/50 block">SECRET PASSWORD</label>
+                <input 
+                  type="password" 
+                  value={emailForm.password}
+                  onChange={e => setEmailForm(prev => ({ ...prev, password: e.target.value }))}
+                  placeholder="••••••••"
+                  className="w-full bg-white/5 border border-white/20 px-3 py-2 text-sm focus:outline-none focus:border-white/55 font-mono"
+                  required
+                  minLength={6}
+                />
+              </div>
+
+              <div className="pt-2">
+                <button 
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full bg-white text-black py-3 px-4 text-xs font-mono font-bold hover:bg-white/90 disabled:bg-white/40 disabled:cursor-not-allowed transition-all tracking-widest uppercase"
+                >
+                  {isSubmitting ? 'WORKING...' : emailForm.isSignup ? 'CREATE JOURNAL' : 'UNLOCK JOURNAL'}
+                </button>
+              </div>
+
+              <div className="text-center">
+                <button 
+                  type="button"
+                  onClick={() => setEmailForm(prev => ({ ...prev, isSignup: !prev.isSignup }))}
+                  className="text-[10px] font-mono tracking-widest uppercase text-white/40 hover:text-white transition-colors"
+                >
+                  {emailForm.isSignup ? 'Already have an account? Log In' : 'Need an account? Sign Up'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          {method === 'phone' && (
+            <div className="w-full">
+              {phoneForm.step === 'send' ? (
+                <form onSubmit={handlePhoneSend} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono tracking-widest uppercase text-white/50 block">PHONE NUMBER (E.164)</label>
+                    <input 
+                      type="tel" 
+                      value={phoneForm.phoneNumber}
+                      onChange={e => setPhoneForm(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                      placeholder="+15551234567"
+                      className="w-full bg-white/5 border border-white/20 px-3 py-2 text-sm focus:outline-none focus:border-white/55 font-mono"
+                      required
+                    />
+                  </div>
+                  <button 
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full bg-white text-black py-3 px-4 text-xs font-mono font-bold hover:bg-white/90 disabled:bg-white/40 disabled:cursor-not-allowed transition-all tracking-widest uppercase"
+                  >
+                    {isSubmitting ? 'SENDING SMS...' : 'SEND VERIFICATION CODE'}
+                  </button>
+                </form>
+              ) : (
+                <form onSubmit={handlePhoneVerify} className="space-y-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-mono tracking-widest uppercase text-white/50 block">6-DIGIT SMS CODE</label>
+                    <input 
+                      type="text" 
+                      value={phoneForm.code}
+                      onChange={e => setPhoneForm(prev => ({ ...prev, code: e.target.value }))}
+                      placeholder="123456"
+                      className="w-full bg-white/5 border border-white/20 px-3 py-2 text-sm focus:outline-none focus:border-white/55 font-mono text-center tracking-widest font-semibold"
+                      required
+                      maxLength={6}
+                    />
+                  </div>
+                  <button 
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full bg-white text-black py-3 px-4 text-xs font-mono font-bold hover:bg-white/90 disabled:bg-white/40 disabled:cursor-not-allowed transition-all tracking-widest uppercase"
+                  >
+                    {isSubmitting ? 'VERIFYING CODE...' : 'VERIFY & SIGN IN'}
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setPhoneForm(prev => ({ ...prev, step: 'send' }))}
+                    className="w-full text-center text-[10px] font-mono tracking-widest uppercase text-white/40 hover:text-white pb-1"
+                  >
+                    Resend Code
+                  </button>
+                </form>
+              )}
+            </div>
+          )}
         </motion.div>
       </div>
     );
   }
 
-  return <MainApp />;
+  return (
+    <div className="relative">
+      {error && (
+        <div className="fixed top-4 left-4 right-4 z-50 p-4 border border-red-500/30 bg-red-950/90 backdrop-blur-md text-red-200/90 text-[11px] font-mono max-w-xl mx-auto shadow-2xl flex flex-col gap-1 md:flex-row md:items-center justify-between">
+          <div className="flex-1 pr-4">
+            <span className="font-bold text-red-400 block mb-0.5 tracking-wider">DATABASE SYSTEM ALERT</span>
+            <span className="leading-relaxed block">{error}</span>
+          </div>
+          <button 
+            onClick={() => setError(null)} 
+            className="text-red-400/50 hover:text-red-200 text-sm font-semibold py-1 px-2.5 bg-red-900/40 hover:bg-red-900/80 border border-red-500/20 md:self-center uppercase text-[10px]"
+          >
+            DISMISS
+          </button>
+        </div>
+      )}
+      <MainApp />
+    </div>
+  );
 }

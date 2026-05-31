@@ -187,7 +187,7 @@ export function SettingsModal({ dreams, settings, updateSettings, onImport, onCl
             <div>
               <h3 className="text-sm font-display font-semibold text-white">Account Details</h3>
               <p className="text-xs text-white/50 mt-1">
-                Currently signed in as {user?.email}.
+                Currently signed in as {user?.isAnonymous ? "Guest Session (Secure & Private)" : (user?.email || "Signed In User")}.
               </p>
             </div>
             <button
